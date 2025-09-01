@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Roadmap Pro｜實戰模式</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<style>
+  :root{ --bg:#0f172a; --card:#0b1220; --muted:#94a3b8; --grid:#d1d5db; --grid-dark:#334155;
+         --red:#e11d48; --blue:#2563eb; --green:#10b981; --ink:#e5e7eb; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:"Microsoft JhengHei",system-ui,-apple-system,Segoe UI,Roboto,Noto Sans TC,Arial}
+  header{padding:12px 16px; background:linear-gradient(180deg,rgba(11,18,32,.95),rgba(11,18,32,.85)); border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:50}
+  .wrap{max-width:1900px; margin:0 auto; padding:16px}
+  .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .grow{flex:1}
+  button, select, label.btn{appearance:none; border:0; border-radius:12px; padding:10px 14px; font-weight:600; color:#fff; cursor:pointer; box-shadow:0 8px 20px rgba(0,0,0,.25); transition:.2s transform ease}
+  button:active{transform:translateY(1px)}
+  .btn-b{background:var(--red)} .btn-p{background:var(--blue)} .btn-t{background:var(--green)} .btn-c{background:#64748b}
+  .btn-on{background:#22c55e}
+  .seg{display:flex; gap:8px; padding:8px; background:#0b1220; border:1px solid #243042; border-radius:12px; align-items:center}
+  .panel{background:#111827; border:1px solid #1f2937; border-radius:14px; padding:12px; box-shadow:0 12px 30px rgba(0,0,0,.25)}
+  .panel h3{margin:2px 0 10px 6px; font-size:14px; color:#cbd5e1; letter-spacing:.3px}
+  .two{ display:grid; grid-template-columns: 1.35fr 1fr; gap:18px; }
+  .bottom3{ display:grid; grid-template-columns: repeat(3, 1fr); gap:16px }
+  @media (max-width: 1280px){ .two{ grid-template-columns:1fr } .bottom3{ grid-template-columns:1fr } }
+  /* boards */
+  .road{ background:#fff; border-radius:12px; padding:8px; border:1px solid var(--grid-dark); overflow:auto; }
+  .cell{ width:28px; height:28px; border:1px solid var(--grid); position:relative; background:#fff; }
+  .grid{ display:grid; gap:0; }
+  /* markers */
+  .disc{ border-radius:50%; width:22px; height:22px; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
+  .disc.red{ background:var(--red) } .disc.blue{ background:var(--blue) }
+  .tieMark{ position:absolute; right:2px; top:2px; width:8px; height:8px; background:var(--green); border-radius:50%; box-shadow:0 0 0 2px #fff; }
+  .ring{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:22px; height:22px; border-radius:50%; box-shadow: inset 0 0 0 3px var(--blue); opacity:1; }
+  .ring.red{ box-shadow: inset 0 0 0 3px var(--red); }
+  .tiny{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:10px; height:10px; border-radius:50%; background:var(--blue); opacity:1; }
+  .tiny.red{ background:var(--red); }
+  .slash::before{ content:""; position:absolute; left:50%; top:50%; width:2px; height:18px; transform:translate(-50%,-50%) rotate(45deg); background:var(--blue); opacity:1; }
+  .slash.red::before{ background:var(--red); }
+  .ghost{ opacity:.35 !important; filter:saturate(130%); }
+  .bead{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:24px; height:24px; border-radius:50%; background:#fff; border:2px solid var(--grid-dark); display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .bead.red{ border-color:var(--red); color:var(--red) }
+  .bead.blue{ border-color:var(--blue); color:var(--blue) }
+  .bead.green{ border-color:var(--green); color:var(--green) }
+  .beadTieDot{ position:absolute; right:2px; top:2px; width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 2px #fff; }
+  /* right column cards */
+  .card{background:#0b1220; border:1px solid #1f2937; border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:10px}
+  .statRow{display:flex; gap:10px; flex-wrap:wrap}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #243042; border-radius:999px; background:#0f172a; font-size:12px}
+  .dotR,.dotP,.dotT{width:10px;height:10px;border-radius:50%} .dotR{background:var(--red)} .dotP{background:var(--blue)} .dotT{background:var(--green)}
+  .bars{display:grid; grid-template-columns: 1fr; gap:6px}
+  .bar{display:flex; align-items:center; gap:8px}
+  .bar .label{width:42px; color:#94a3b8; font-size:12px}
+  .bar .meter{flex:1; height:10px; background:#0f172a; border-radius:999px; overflow:hidden; border:1px solid #243042}
+  .bar .fill{height:100%; background:linear-gradient(90deg, rgba(225,29,72,.9), rgba(37,99,235,.9));}
+  canvas{width:100%; height:130px; background:#0f172a; border:1px solid #243042; border-radius:10px}
+  iframe{width:100%; height:320px; border:1px solid #243042; border-radius:12px; background:#0b1220}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="row">
+      <div class="seg">
+        <button class="btn-b" onclick="add('B')">莊</button>
+        <button class="btn-p" onclick="add('P')">閒</button>
+        <button class="btn-t" onclick="add('T')">和</button>
+        <button class="btn-c" onclick="undo()">復原</button>
+        <button class="btn-c" onclick="clearAll()">清除</button>
+        <button id="autoBtn" class="btn-c" onclick="toggleAuto()">自動帶入：關</button>
+        <label class="btn btn-c">匯入<input type="file" accept="application/json" onchange="importJSON(event)" style="display:none"></label>
+        <button class="btn-c" onclick="exportJSON()">匯出</button>
+      </div>
+      <div class="grow"></div>
+      <div class="seg">
+        <label>比較法：</label>
+        <select id="compareMode" onchange="render()">
+          <option value="standard">標準（空格=不存在）</option>
+          <option value="strict">嚴格（空格=中斷）</option>
+        </select>
+        <label>和局：</label>
+        <select id="tieMode" onchange="render()">
+          <option value="ignore">忽略</option>
+          <option value="break">視為斷列</option>
+        </select>
+        <label><input type="checkbox" id="ghostChk" checked onchange="render()"> 顯示 Ghost</label>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap two">
+  <!-- Left: boards -->
+  <div>
+    <div class="panel">
+      <h3>珠盤路（6×25）</h3>
+      <div class="road"><div id="bead" class="grid"></div></div>
+    </div>
+    <div class="panel">
+      <h3>大路（6×32）</h3>
+      <div class="road"><div id="main" class="grid"></div></div>
+    </div>
+    <div class="bottom3">
+      <div class="panel">
+        <h3>大眼仔路（6×20）</h3>
+        <div class="road"><div id="big" class="grid"></div></div>
+      </div>
+      <div class="panel">
+        <h3>小路（6×20）</h3>
+        <div class="road"><div id="small" class="grid"></div></div>
+      </div>
+      <div class="panel">
+        <h3>蟑螂路（6×20）</h3>
+        <div class="road"><div id="roach" class="grid"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: battle side -->
+  <div class="panel" style="display:grid; gap:12px; grid-template-rows: auto auto auto auto auto;">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-weight:700">即時統計</div>
+        <div class="statRow">
+          <span class="pill"><span class="dotR"></span>莊 <b id="sB">0</b></span>
+          <span class="pill"><span class="dotP"></span>閒 <b id="sP">0</b></span>
+          <span class="pill"><span class="dotT"></span>和 <b id="sT">0</b></span>
+          <span class="pill">總數 <b id="sN">0</b></span>
+        </div>
+      </div>
+      <canvas id="trend"></canvas>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700">連莊／連閒分布</div>
+      <div class="bars" id="streakBars"></div>
+    </div>
+
+    <div class="card" id="predictPanel">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-weight:700">下三路預測規律</div>
+        <div style="font-size:12px; color:#94a3b8">紅=同形、藍=不同形</div>
+      </div>
+      <div class="statRow" style="gap:12px; flex-wrap:wrap">
+        <div class="pill">若下一手 <b>莊</b> → 大眼仔：<span id="pb-big"></span>、小路：<span id="pb-small"></span>、蟑螂：<span id="pb-roach"></span></div>
+        <div class="pill">若下一手 <b>閒</b> → 大眼仔：<span id="pp-big"></span>、小路：<span id="pp-small"></span>、蟑螂：<span id="pp-roach"></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-weight:700">勝率計算器（可選）</div>
+        <button class="btn-c" onclick="toggleCalc()">顯示/隱藏</button>
+      </div>
+      <iframe id="calc" src="https://pox1028-dev.github.io/baccarat-pwa/?v=42-offline" title="百家樂勝率計算器" style="display:none"></iframe>
+    </div>
+
+    <div class="card" style="font-size:12px; color:#94a3b8">
+      小提示：自動帶入會偵測右側頁面的「總計已扣：N 張」，每當數字增加就視為新局，並採用當下 Banker/Player/Tie 百分比較大者寫入左側。
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== Sizes =====
+  const ROWS=6, BEAD_COLS=25, MAIN_COLS=32, DER_COLS=20;
+  const LS_KEY="battle_mode_state_v1";
+  let hands=JSON.parse(localStorage.getItem(LS_KEY)||"[]"); // {res:'B|P|T', ts:number}
+  let lastPos=null,lastColor=null;
+  // grids
+  const setGrid=(el,cols)=>{ el.style.gridTemplateColumns=`repeat(${cols}, 28px)`; el.style.gridTemplateRows=`repeat(${ROWS}, 28px)`; };
+  ['bead','main','big','small','roach'].forEach((id)=>{ setGrid(document.getElementById(id), id==='bead'?BEAD_COLS:(id==='main'?MAIN_COLS:DER_COLS)); });
+
+  // controls
+  function persist(){ localStorage.setItem(LS_KEY, JSON.stringify(hands)); }
+  function add(x){ hands.push({res:x, ts:Date.now()}); persist(); render(); }
+  function undo(){ hands.pop(); persist(); render(); }
+  function clearAll(){ if(confirm('確認清除全部？')){ hands=[]; persist(); render(); } }
+  function exportJSON(){
+    const blob = new Blob([JSON.stringify({hands}, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = "battle_data.json"; a.click(); URL.revokeObjectURL(url);
+  }
+  function importJSON(e){
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>{ try{ const data=JSON.parse(r.result); if(Array.isArray(data.hands)) hands=data.hands; else if(Array.isArray(data)) hands=data; persist(); render(); }catch(err){ alert('匯入失敗'); } }; r.readAsText(f);
+  }
+  const getCompareMode=()=>document.getElementById('compareMode').value;
+  const getTieMode=()=>document.getElementById('tieMode').value;
+  const ghostOn=()=>document.getElementById('ghostChk').checked;
+
+  // ===== boards render =====
+  function render(){
+    // Bead (always ignore tie special handling here; we just mark)
+    paintBead(hands.map(h=>h.res));
+    // Big road (apply tie mode)
+    const seq = applyTieMode(hands.map(h=>h.res));
+    const mainGrid=buildMainGrid(seq);
+    paintMain(mainGrid);
+    // Derived
+    const cols=extractCols(mainGrid);
+    paintDerived('big', buildDerived(cols,2,getCompareMode()),'ring',DER_COLS);
+    paintDerived('small', buildDerived(cols,3,getCompareMode()),'tiny',DER_COLS);
+    paintDerived('roach', buildDerived(cols,4,getCompareMode()),'slash',DER_COLS);
+    if(ghostOn()) paintGhost();
+    // right panels
+    updateStats();
+    drawTrend();
+    drawStreaks();
+    updatePredictionPanel();
+  }
+
+  function applyTieMode(seq){
+    const mode = getTieMode(); if(mode!=='break') return seq;
+    // 'break' : treat T as a forced break (X)
+    return seq.map(v=> v==='T' ? 'X' : v);
+  }
+
+  // Bead
+  function paintBead(seq){
+    const root=document.getElementById('bead'); root.innerHTML='';
+    const grid = Array.from({length:ROWS},()=>Array(BEAD_COLS).fill(''));
+    let r=0,c=0;
+    for(const v of seq){
+      grid[r][c]=v; r++; if(r>=ROWS){ r=0;c++; if(c>=BEAD_COLS) break; }
+    }
+    for(let rr=0; rr<ROWS; rr++){
+      for(let cc=0; cc<BEAD_COLS; cc++){
+        const cell=document.createElement('div'); cell.className='cell';
+        const v=grid[rr][cc];
+        if(v){
+          const bead=document.createElement('div'); bead.className='bead '+(v==='B'?'red':v==='P'?'blue':'green'); bead.textContent=(v==='B'?'莊':v==='P'?'閒':'和'); cell.appendChild(bead);
+          const idx=rr+cc*ROWS; if(seq[idx+1]==='T'){ const dot=document.createElement('div'); dot.className='beadTieDot'; cell.appendChild(dot); }
+        }
+        root.appendChild(cell);
+      }
+    }
+  }
+
+  // Big road builder
+  function buildMainGrid(list){
+    const grid=Array.from({length:ROWS},()=>Array(MAIN_COLS).fill(''));
+    let row=0,col=0; lastPos=null; lastColor=null;
+    for(const r of list){
+      if(r==='T'){ if(lastPos){ grid[lastPos.row][lastPos.col]+='T'; } continue; }
+      if(r==='X'){ // forced break
+        if(lastPos){ row=0; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++; lastColor=null; }
+        continue;
+      }
+      if(!lastColor){ grid[row][col]=r; lastColor=r; lastPos={row,col}; continue; }
+      if(r===lastColor){
+        if(lastPos.row+1<ROWS && !grid[lastPos.row+1][lastPos.col]){ row=lastPos.row+1; col=lastPos.col; }
+        else{ row=lastPos.row; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++; }
+      }else{
+        row=0; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++; lastColor=r;
+      }
+      if(col<MAIN_COLS){ grid[row][col]=r; lastPos={row,col}; }
+    }
+    return grid;
+  }
+  function paintMain(grid){
+    const root=document.getElementById('main'); root.innerHTML='';
+    for(let r=0;r<ROWS;r++){
+      for(let c=0;c<MAIN_COLS;c++){
+        const v=grid[r][c]; const cell=document.createElement('div'); cell.className='cell';
+        if(v.includes('B')||v.includes('P')){ const disc=document.createElement('div'); disc.className='disc '+(v.includes('B')?'red':'blue'); cell.appendChild(disc); }
+        if(v.includes('T')){ const t=document.createElement('div'); t.className='tieMark'; cell.appendChild(t); }
+        root.appendChild(cell);
+      }
+    }
+  }
+  function extractCols(grid){
+    const cols=[]; for(let c=0;c<MAIN_COLS;c++){ const col=[]; for(let r=0;r<ROWS;r++){ const v=grid[r][c]; if(v.includes('B')||v.includes('P')) col.push(v); } if(col.length) cols.push(col); }
+    return cols;
+  }
+  function buildDerived(cols, offset, mode){
+    const out=[];
+    for(let c=1;c<cols.length;c++){
+      const cur=cols[c];
+      for(let r=offset-1;r<cur.length;r++){
+        const leftHas = (cols[c-1] && (mode==='standard' ? cols[c-1][r-1]!==undefined : !!cols[c-1][r-1]));
+        const refIdx = c - offset;
+        const refHas  = (cols[refIdx] && (mode==='standard' ? cols[refIdx][r-1]!==undefined : !!cols[refIdx][r-1]));
+        out.push( (leftHas===refHas)?'R':'B' );
+      }
+    }
+    return out;
+  }
+  function paintDerived(id,arr,style,colsCount){
+    const root=document.getElementById(id); root.innerHTML=''; const max=ROWS*colsCount;
+    for(let i=0;i<max;i++){ const cell=document.createElement('div'); cell.className='cell'; const v=arr[i];
+      if(v){ if(style==='ring'){ const el=document.createElement('div'); el.className='ring'+(v==='R'?' red':''); cell.appendChild(el); }
+        else if(style==='tiny'){ const el=document.createElement('div'); el.className='tiny '+(v==='R'?' red':''); cell.appendChild(el); }
+        else if(style==='slash'){ cell.className+=' slash'+(v==='R'?' red':''); } }
+      root.appendChild(cell);
+    }
+  }
+  function paintGhost(){
+    const tieMode=getTieMode(), cmp=getCompareMode();
+    const seqB = hands.map(h=>h.res).concat('B');
+    const seqP = hands.map(h=>h.res).concat('P');
+    const trans = s => (tieMode==='break'? s.map(v=>v==='T'?'X':v): s);
+    const build = seq => { const g=buildMainGrid(trans(seq)); const c=extractCols(g); return {big:buildDerived(c,2,cmp), small:buildDerived(c,3,cmp), roach:buildDerived(c,4,cmp)}; };
+    const cur = build(hands.map(h=>h.res));
+    const b = build(seqB), p = build(seqP);
+    const show = (id, before, after, style)=>{
+      const root=document.getElementById(id);
+      if(after.length>before.length){
+        const i = after.length-1; const cell = root.children[i];
+        if(cell){
+          if(style==='ring'){ const el=document.createElement('div'); el.className='ring'+(after[i]==='R'?' red':'')+' ghost'; cell.appendChild(el); }
+          else if(style==='tiny'){ const el=document.createElement('div'); el.className='tiny'+(after[i]==='R'?' red':'')+' ghost'; cell.appendChild(el); }
+          else if(style==='slash'){ const ghost=document.createElement('div'); ghost.className='ghost'; cell.appendChild(ghost); cell.className += (after[i]==='R'?' slash red':' slash'); }
+        }
+      }
+    };
+    show('big', cur.big, b.big, 'ring'); show('small', cur.small, b.small, 'tiny'); show('roach', cur.roach, b.roach, 'slash');
+    show('big', cur.big, p.big, 'ring'); show('small', cur.small, p.small, 'tiny'); show('roach', cur.roach, p.roach, 'slash');
+  }
+
+  // ===== Right column logic =====
+  function updateStats(){
+    const sB=hands.filter(h=>h.res==='B').length;
+    const sP=hands.filter(h=>h.res==='P').length;
+    const sT=hands.filter(h=>h.res==='T').length;
+    document.getElementById('sB').textContent=sB;
+    document.getElementById('sP').textContent=sP;
+    document.getElementById('sT').textContent=sT;
+    document.getElementById('sN').textContent=hands.length;
+  }
+  function drawTrend(){
+    const cvs=document.getElementById('trend'); const ctx=cvs.getContext('2d');
+    const W=cvs.width=cvs.clientWidth, H=cvs.height=cvs.clientHeight;
+    ctx.clearRect(0,0,W,H);
+    // compute cumulative B/P ratio over time ignoring T
+    const pts=[]; let b=0,p=0;
+    hands.forEach(h=>{ if(h.res==='B') b++; if(h.res==='P') p++; const n=b+p; if(n>0) pts.push({x:pts.length, y:b/n}); });
+    if(pts.length<2){ ctx.fillStyle='#94a3b8'; ctx.fillText('等待更多資料以繪製走勢', 12, 18); return; }
+    const maxX=pts.length-1; const pad=10;
+    // axis
+    ctx.strokeStyle='#243042'; ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+    // 50% line
+    ctx.strokeStyle='rgba(148,163,184,.6)'; ctx.beginPath(); ctx.moveTo(pad, H/2); ctx.lineTo(W-pad, H/2); ctx.stroke();
+    // line
+    ctx.beginPath(); pts.forEach((pt,i)=>{ const x=pad + (W-2*pad)*(pt.x/maxX); const y=H-pad - (H-2*pad)*(pt.y); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.strokeStyle='rgba(225,29,72,.9)'; ctx.lineWidth=2; ctx.stroke();
+  }
+  function drawStreaks(){
+    // compute streaks for B and P
+    let cur=null,len=0; const dist={B:{},P:{}};
+    hands.forEach(h=>{
+      if(h.res==='T') return; // ignore ties for streaks
+      if(h.res===cur){ len++; } else { if(cur && len>0){ dist[cur][len]=(dist[cur][len]||0)+1; } cur=h.res; len=1; }
+    });
+    if(cur && len>0){ dist[cur][len]=(dist[cur][len]||0)+1; }
+    const container=document.getElementById('streakBars'); container.innerHTML='';
+    const allLens=Array.from(new Set([...Object.keys(dist.B),...Object.keys(dist.P)].map(Number))).sort((a,b)=>a-b);
+    const maxCount=Math.max(1,...allLens.map(k=>(dist.B[k]||0)+(dist.P[k]||0)));
+    allLens.forEach(k=>{
+      const total=(dist.B[k]||0)+(dist.P[k]||0);
+      const row=document.createElement('div'); row.className='bar';
+      const label=document.createElement('div'); label.className='label'; label.textContent=`${k}連`;
+      const meter=document.createElement('div'); meter.className='meter';
+      const fill=document.createElement('div'); fill.className='fill'; fill.style.width = (total/maxCount*100)+'%';
+      meter.appendChild(fill); row.appendChild(label); row.appendChild(meter);
+      container.appendChild(row);
+    });
+  }
+  function colorBadge(v){ return v==='R' ? '<span class="pill"><span class="dotR"></span>紅</span>' : v==='B' ? '<span class="pill"><span class="dotP"></span>藍</span>' : '<span class="pill" style="opacity:.6">—</span>'; }
+  function updatePredictionPanel(){
+    const tieMode=getTieMode(), cmp=getCompareMode();
+    const trans = s => (tieMode==='break'? s.map(v=>v==='T'?'X':v): s);
+    const build = seq => { const g=buildMainGrid(trans(seq)); const c=extractCols(g); return {big:buildDerived(c,2,cmp).at(-1)||'-', small:buildDerived(c,3,cmp).at(-1)||'-', roach:buildDerived(c,4,cmp).at(-1)||'-'}; };
+    const nb=build(hands.map(h=>h.res).concat('B'));
+    const np=build(hands.map(h=>h.res).concat('P'));
+    document.getElementById('pb-big').innerHTML=colorBadge(nb.big);
+    document.getElementById('pb-small').innerHTML=colorBadge(nb.small);
+    document.getElementById('pb-roach').innerHTML=colorBadge(nb.roach);
+    document.getElementById('pp-big').innerHTML=colorBadge(np.big);
+    document.getElementById('pp-small').innerHTML=colorBadge(np.small);
+    document.getElementById('pp-roach').innerHTML=colorBadge(np.roach);
+  }
+
+  // ===== Calculator iframe & auto adopt =====
+  const calcFrame=document.getElementById('calc'); let autoOn=false, lastUsed=-1;
+  function toggleCalc(){ calcFrame.style.display = (calcFrame.style.display==='none'?'block':'none'); }
+  function toggleAuto(){ autoOn=!autoOn; document.getElementById('autoBtn').textContent='自動帶入：'+(autoOn?'開':'關'); document.getElementById('autoBtn').classList.toggle('btn-on', autoOn); }
+  function readUsed(){ try{ const text = calcFrame.contentWindow.document.body.innerText || ''; const m=/總計已扣\s*[:：]?\s*(\d+)\s*張/.exec(text) || /Used\D*(\d+)/i.exec(text); return m?parseInt(m[1],10):-1; }catch(e){ return -1; } }
+  function readPick(){
+    try{
+      const text = calcFrame.contentWindow.document.body.innerText || '';
+      const b = (/Banker\D+(\d+(?:\.\d+)?)%/.exec(text) || /莊[^\d]*(\d+(?:\.\d+)?)%/.exec(text));
+      const p = (/Player\D+(\d+(?:\.\d+)?)%/.exec(text) || /閒[^\d]*(\d+(?:\.\d+)?)%/.exec(text));
+      const t = (/Tie\D+(\d+(?:\.\d+)?)%/.exec(text)    || /和[^\d]*(\d+(?:\.\d+)?)%/.exec(text));
+      if(b&&p&&t){
+        const arr=[{k:'B',v:parseFloat(b[1])},{k:'P',v:parseFloat(p[1])},{k:'T',v:parseFloat(t[1])}];
+        arr.sort((a,b)=>b.v-a.v); return arr[0].k;
+      }
+    }catch(e){}
+    return '';
+  }
+  setInterval(()=>{
+    if(!autoOn || calcFrame.style.display==='none') return;
+    const used=readUsed();
+    if(used>0 && used!==lastUsed){
+      lastUsed=used;
+      const pick=readPick();
+      if(pick) add(pick);
+    }
+  }, 1000);
+
+  render();
+</script>
+</body>
+</html>

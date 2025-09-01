@@ -3,19 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Roadmap Pro｜下三路修正（落子排版同大路）</title>
+<title>Roadmap Pro｜下三路 Debug 版（實戰相容）</title>
 <style>
   :root{ --bg:#0f172a; --card:#0b1220; --grid:#d1d5db; --grid-dark:#334155;
          --red:#e11d48; --blue:#2563eb; --green:#10b981; --ink:#e5e7eb; }
   *{box-sizing:border-box}
   body{margin:0; background:var(--bg); color:var(--ink); font-family:"Microsoft JhengHei",system-ui,-apple-system,Segoe UI,Roboto,Noto Sans TC,Arial}
   header{padding:12px 16px; background:#0b1220; border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:50}
-  .wrap{max-width:1900px; margin:0 auto; padding:16px}
+  .wrap{max-width:2000px; margin:0 auto; padding:16px}
   .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
   .grow{flex:1}
-  button, select{appearance:none; border:0; border-radius:10px; padding:10px 14px; font-weight:600; color:#fff; background:#64748b; cursor:pointer}
+  button, select, label{font-weight:600}
+  button, select{appearance:none; border:0; border-radius:10px; padding:10px 14px; color:#fff; background:#64748b; cursor:pointer}
+  input[type="checkbox"]{transform:translateY(2px); margin-right:6px}
   .btn-b{background:var(--red)} .btn-p{background:var(--blue)} .btn-t{background:var(--green)}
-  .seg{display:flex; gap:8px; padding:8px; background:#0b1220; border:1px solid #243042; border-radius:12px; align-items:center}
+  .seg{display:flex; gap:10px; padding:8px; background:#0b1220; border:1px solid #243042; border-radius:12px; align-items:center}
   .panel{background:#111827; border:1px solid #1f2937; border-radius:14px; padding:12px; margin-top:16px}
   .panel h3{margin:2px 0 10px 6px; font-size:14px; color:#cbd5e1}
   .road{ background:#fff; border-radius:12px; padding:8px; border:1px solid var(--grid-dark); overflow:auto; }
@@ -34,6 +36,11 @@
   .bead.red{ border-color:var(--red); color:var(--red) }
   .bead.blue{ border-color:var(--blue); color:var(--blue) }
   .bead.green{ border-color:var(--green); color:var(--green) }
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{border-bottom:1px solid #1f2937; padding:6px 8px; text-align:left}
+  .tag{display:inline-block; padding:2px 6px; border-radius:6px; font-weight:700; color:#0b1220}
+  .tagR{background:#fecaca} .tagB{background:#bfdbfe}
+  .muted{color:#9aa3af}
 </style>
 </head>
 <body>
@@ -49,18 +56,22 @@
       </div>
       <div class="grow"></div>
       <div class="seg">
-        <label>下三路算法：</label>
+        <label>算法：</label>
         <select id="algoMode" onchange="render()">
           <option value="height" selected>Height（高度比較）</option>
           <option value="presence">Presence（同一行有無）</option>
           <option value="strict-gap">Strict-Gap（缺口分歧）</option>
         </select>
-        <label>高度判斷：</label>
+
+        <label>高度規則：</label>
         <select id="heightRule" onchange="render()">
           <option value="ge" selected>左≥右=紅（預設）</option>
           <option value="eq">等高=紅</option>
           <option value="le">左≤右=紅</option>
         </select>
+
+        <label><input type="checkbox" id="countTies" checked onchange="render()"> 和局算高度</label>
+        <label><input type="checkbox" id="countBreak" checked onchange="render()"> 斷列算高度(+1)</label>
         <label><input type="checkbox" id="bothReachRow" checked onchange="render()"> 兩欄高度≥當前行才落</label>
         <label><input type="checkbox" id="offsetStart" checked onchange="render()"> 起算行=offset(2/3/4)</label>
       </div>
@@ -76,46 +87,87 @@
   <div class="panel">
     <h3>大路（6×32）</h3>
     <div class="road"><div id="main" class="grid"></div></div>
+    <div class="muted" id="colMetaNote" style="padding:6px 4px 0"></div>
   </div>
   <div class="panel">
     <h3>大眼仔 / 小路 / 蟑螂（各 6×20）</h3>
     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px">
-      <div class="road"><div id="big" class="grid"></div></div>
-      <div class="road"><div id="small" class="grid"></div></div>
-      <div class="road"><div id="roach" class="grid"></div></div>
+      <div>
+        <div class="road"><div id="big" class="grid"></div></div>
+        <div id="dbgBig"></div>
+      </div>
+      <div>
+        <div class="road"><div id="small" class="grid"></div></div>
+        <div id="dbgSmall"></div>
+      </div>
+      <div>
+        <div class="road"><div id="roach" class="grid"></div></div>
+        <div id="dbgRoach"></div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-/* ============= 盤面尺寸 ============= */
+/* ================= 參數 & UI ================= */
 const ROWS=6, BEAD_COLS=25, MAIN_COLS=32, DER_COLS=20;
 let hands=[];
-
-/* ============= 基礎 UI ============= */
 const setGrid=(el,cols)=>{ el.style.gridTemplateColumns=`repeat(${cols}, 28px)`; el.style.gridTemplateRows=`repeat(${ROWS}, 28px)`; };
 ['bead','main','big','small','roach'].forEach(id=>setGrid(document.getElementById(id), id==='bead'?BEAD_COLS:(id==='main'?MAIN_COLS:DER_COLS)));
-
 function add(x){ hands.push({res:x}); render(); }
 function undo(){ hands.pop(); render(); }
 function clearAll(){ if(confirm('清除?')){ hands=[]; render(); } }
 
-/* ============= 大路建表（實戰常見規則） ============= */
-function buildMainGrid(list){
+/* ================= 大路建表（同實戰） ================= */
+function buildMainGridWithMeta(list){
+  // grid[r][c] 內容：'B'/'P' + 可附加 'T' 次數
   const grid=Array.from({length:ROWS},()=>Array(MAIN_COLS).fill(''));
+  const colMeta=[]; // 每欄：{bp:格數, ties:和數, blockedBreak:boolean}
   let row=0,col=0; let last=null,lastPos=null;
+
+  const ensureCol=(c)=>{ if(!colMeta[c]) colMeta[c]={bp:0, ties:0, blockedBreak:false}; };
+
   for(const r of list){
-    if(r==='T'){ if(lastPos){ grid[lastPos.row][lastPos.col]+='T'; } continue; } // 和只做記號
-    if(!last){ grid[row][col]=r; last=r; lastPos={row,col}; continue; }
-    if(r===last){
-      if(lastPos.row+1<ROWS && !grid[lastPos.row+1][lastPos.col]){ row=lastPos.row+1; col=lastPos.col; }
-      else { row=lastPos.row; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++; }
-    }else{
-      row=0; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++; last=r;
+    if(r==='T'){
+      if(lastPos){
+        grid[lastPos.row][lastPos.col]+='T';
+        ensureCol(lastPos.col);
+        colMeta[lastPos.col].ties += 1;
+      }
+      continue;
     }
-    if(col<MAIN_COLS){ grid[row][col]=r; lastPos={row,col}; }
+    if(!last){
+      ensureCol(col);
+      grid[row][col]=r; last=r; lastPos={row,col};
+      colMeta[col].bp += 1;
+      continue;
+    }
+    if(r===last){
+      if(lastPos.row+1<ROWS && !grid[lastPos.row+1][lastPos.col]){
+        row=lastPos.row+1; col=lastPos.col;
+        grid[row][col]=r; lastPos={row,col};
+        ensureCol(col); colMeta[col].bp += 1;
+      }else{
+        // 下不去 → 斷列右移
+        ensureCol(lastPos.col);
+        colMeta[lastPos.col].blockedBreak = true;
+        row=lastPos.row; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++;
+        if(col<MAIN_COLS){
+          ensureCol(col);
+          grid[row][col]=r; lastPos={row,col}; colMeta[col].bp += 1;
+        }
+      }
+    }else{
+      // 換色：回頂右移，不算 blockedBreak
+      row=0; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++;
+      last=r;
+      if(col<MAIN_COLS){
+        ensureCol(col);
+        grid[row][col]=r; lastPos={row,col}; colMeta[col].bp += 1;
+      }
+    }
   }
-  return grid;
+  return {grid, colMeta};
 }
 function paintMain(grid){
   const root=document.getElementById('main'); root.innerHTML='';
@@ -126,52 +178,56 @@ function paintMain(grid){
     root.appendChild(cell);
   }
 }
-function extractCols(grid){
-  const cols=[]; for(let c=0;c<MAIN_COLS;c++){ const col=[]; for(let r=0;r<ROWS;r++){ const v=grid[r][c]; if(v.includes('B')||v.includes('P')) col.push(v); } if(col.length) cols.push(col); }
-  return cols;
+
+/* =========== 取欄「實戰高度」：含（可選）和局 + 斷列補位 =========== */
+function getColumnHeights(meta){
+  const useT = document.getElementById('countTies').checked;
+  const useBreak = document.getElementById('countBreak').checked;
+  return meta.map(m => (m?.bp||0) + (useT?(m?.ties||0):0) + (useBreak && m?.blockedBreak ? 1 : 0));
 }
 
-/* ============= 下三路：先算顏色序列，再用「大路規則」堆欄 ============= */
-// 1) 產生紅/藍序列（依你選的算法）
-function derivedSequence(cols, offset){
+/* ================= 下三路：算序列 + 大路式排版 ================= */
+function derivedSequence(colsHeights, offset){
   const algo = (document.getElementById('algoMode')?.value) || 'height';
   const rule = (document.getElementById('heightRule')?.value) || 'ge'; // ge/eq/le
-  const bothReachRow = !!document.getElementById('bothReachRow')?.checked;
-  const offsetStart  = !!document.getElementById('offsetStart')?.checked;
+  const bothReachRow = document.getElementById('bothReachRow').checked;
+  const offsetStart  = document.getElementById('offsetStart').checked;
+  const rStart = offsetStart ? Math.max(1, offset-1) : 1; // 1=第2行
 
-  const rStart = offsetStart ? Math.max(1, offset-1) : 1; // 起算行（1=第2行）
-  const seq=[]; // 'R' / 'B'
+  const seq=[]; const dbg=[];
+  for(let c=1;c<colsHeights.length;c++){
+    const curH = colsHeights[c];
+    const leftH = colsHeights[c-1] ?? 0;
+    const refH  = colsHeights[c-offset] ?? 0;
 
-  for (let c=1; c<cols.length; c++) {
-    const curH = cols[c]?.length || 0;
-    for (let r=rStart; r<curH; r++) {
-      const leftH = cols[c-1]?.length || 0;
-      const refH  = cols[c-offset]?.length || 0;
-
-      if (bothReachRow && (leftH <= r-1 || refH <= r-1)) continue;
-
+    // 逐行檢查（從 rStart ~ curH-1）
+    for(let r=rStart; r<curH; r++){
+      const need = bothReachRow && ((leftH<=r-1) || (refH<=r-1));
+      if(need){
+        dbg.push({roadOffset:offset, c, r, leftH, refH, rule, mode:algo, out:'(skip)', reason:'未達當前行'});
+        continue;
+      }
       let red=true;
-      if (algo==='height'){
-        if (rule==='ge') red = (leftH >= refH);
-        else if (rule==='le') red = (leftH <= refH);
+      if(algo==='height'){
+        if(rule==='ge') red = (leftH >= refH);
+        else if(rule==='le') red = (leftH <= refH);
         else red = (leftH === refH);
       }else{
-        // presence / strict-gap
-        const leftHas = !!(cols[c-1] && cols[c-1][r-1] !== undefined);
-        const refHas  = !!(cols[c-offset] && cols[c-offset][r-1] !== undefined);
+        // presence / strict-gap：以是否「理論上」存在該行來判斷
+        const leftHas = leftH > (r-1);
+        const refHas  = refH  > (r-1);
         red = (algo==='strict-gap') ? (leftHas && refHas) : (leftHas === refHas);
       }
       seq.push(red?'R':'B');
+      dbg.push({roadOffset:offset, c, r, leftH, refH, rule, mode:algo, out:(red?'R':'B')});
     }
   }
-  return seq;
+  return {seq, dbg};
 }
-
-// 2) 用跟大路一樣的落子規則，把紅/藍序列「往下走、滿了才右移」放進 6×N 盤
 function layAsRoad(seq, colsCount){
-  const grid=Array.from({length:ROWS},()=>Array(colsCount).fill('')); // 'R'/'B' or ''
+  const grid=Array.from({length:ROWS},()=>Array(colsCount).fill(''));
   let row=0, col=0; let last=null, lastPos=null;
-  for (const v of seq){
+  for(const v of seq){
     if(!last){ grid[row][col]=v; last=v; lastPos={row,col}; continue; }
     if(v===last){
       if(lastPos.row+1<ROWS && !grid[lastPos.row+1][lastPos.col]){ row=lastPos.row+1; col=lastPos.col; }
@@ -179,13 +235,10 @@ function layAsRoad(seq, colsCount){
     }else{
       row=0; col=lastPos.col+1; while(col<colsCount && grid[row][col]) col++; last=v;
     }
-    if(col<colsCount){ grid[row][col]=v; lastPos={row,col}; }
-    else break; // 盤滿就停
+    if(col<colsCount){ grid[row][col]=v; lastPos={row,col}; } else break;
   }
   return grid;
 }
-
-// 3) 畫出來
 function paintDerivedGrid(id, grid, style){
   const root=document.getElementById(id); root.innerHTML='';
   for(let r=0;r<ROWS;r++) for(let c=0;c<grid[0].length;c++){
@@ -200,14 +253,12 @@ function paintDerivedGrid(id, grid, style){
   }
 }
 
-/* ============= 珠盤路 ============= */
+/* ================= 珠盤路 ================= */
 function paintBead(seq){
   const root=document.getElementById('bead'); root.innerHTML='';
   const grid=Array.from({length:ROWS},()=>Array(BEAD_COLS).fill(''));
   let r=0,c=0;
-  for(const v of seq){
-    grid[r][c]=v; r++; if(r>=ROWS){ r=0;c++; if(c>=BEAD_COLS) break; }
-  }
+  for(const v of seq){ grid[r][c]=v; r++; if(r>=ROWS){ r=0; c++; if(c>=BEAD_COLS) break; } }
   for(let rr=0; rr<ROWS; rr++){
     for(let cc=0; cc<BEAD_COLS; cc++){
       const cell=document.createElement('div'); cell.className='cell';
@@ -221,19 +272,50 @@ function paintBead(seq){
   }
 }
 
-/* ============= 主渲染 ============= */
+/* ================= Debug 面板 ================= */
+function renderDebug(tableId, dbg, title){
+  const el=document.getElementById(tableId);
+  if(!dbg.length){ el.innerHTML='<div class="muted" style="padding:6px 4px">（目前沒有可顯示的比較資料）</div>'; return; }
+  let html = `<h3 style="margin:10px 0 6px 0">${title} 比較明細</h3>
+  <div style="max-height:240px; overflow:auto; border:1px solid #1f2937; border-radius:8px">
+  <table><thead><tr>
+  <th>欄c</th><th>行r(第r+1行)</th><th>左欄高</th><th>參考欄高</th><th>規則</th><th>模式</th><th>結果</th><th>備註</th>
+  </tr></thead><tbody>`;
+  for(const x of dbg){
+    html += `<tr>
+      <td>${x.c}</td>
+      <td>${x.r} <span class="muted">(第${x.r+1}行)</span></td>
+      <td>${x.leftH}</td>
+      <td>${x.refH}</td>
+      <td>${x.rule}</td>
+      <td>${x.mode}</td>
+      <td>${x.out==='R' ? '<span class="tag tagR">紅</span>' : x.out==='B' ? '<span class="tag tagB">藍</span>' : ''}</td>
+      <td>${x.reason||''}</td>
+    </tr>`;
+  }
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+/* ================= 主渲染 ================= */
 function render(){
-  const seq=hands.map(h=>h.res);     // B / P / T
-  // 珠盤路
+  const seq = hands.map(h=>h.res);         // B / P / T
   paintBead(seq);
-  // 大路
-  const main=buildMainGrid(seq);
+
+  // 大路 + 欄位中繼資料
+  const {grid:main, colMeta} = buildMainGridWithMeta(seq);
   paintMain(main);
-  const cols=extractCols(main);
-  // 下三路：算序列 → 依大路規則落盤 → 繪圖
-  const bigSeq   = derivedSequence(cols,2);
-  const smallSeq = derivedSequence(cols,3);
-  const roachSeq = derivedSequence(cols,4);
+
+  // 顯示欄高計算方式（方便你核對）
+  const heights = getColumnHeights(colMeta);
+  document.getElementById('colMetaNote').innerHTML =
+    `欄高 = 莊/閒格數 ${document.getElementById('countTies').checked?'+ 和數':''} ${document.getElementById('countBreak').checked?'+ 斷列補位(有則+1)':''}；
+     目前欄高：[ ${heights.join(', ')} ]`;
+
+  // 產生三路的序列 + Debug；再用大路規則落盤
+  const {seq:bigSeq,   dbg:dbgBig}   = derivedSequence(heights,2);
+  const {seq:smallSeq, dbg:dbgSmall} = derivedSequence(heights,3);
+  const {seq:roachSeq, dbg:dbgRoach} = derivedSequence(heights,4);
 
   const bigGrid   = layAsRoad(bigSeq,   DER_COLS);
   const smallGrid = layAsRoad(smallSeq, DER_COLS);
@@ -242,6 +324,10 @@ function render(){
   paintDerivedGrid('big',   bigGrid,   'ring');
   paintDerivedGrid('small', smallGrid, 'tiny');
   paintDerivedGrid('roach', roachGrid, 'slash');
+
+  renderDebug('dbgBig',   dbgBig,   '大眼仔');
+  renderDebug('dbgSmall', dbgSmall, '小路');
+  renderDebug('dbgRoach', dbgRoach, '蟑螂');
 }
 render();
 </script>

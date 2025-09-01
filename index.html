@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Roadmap Pro｜實戰口味（連續落子版）</title>
+<title>Roadmap Pro｜逐手模擬（實戰口味）</title>
 <style>
   :root{ --bg:#0f172a; --card:#0b1220; --grid:#d1d5db; --grid-dark:#334155;
          --red:#e11d48; --blue:#2563eb; --green:#10b981; --ink:#e5e7eb; }
@@ -34,6 +34,7 @@
   .bead.red{ border-color:var(--red); color:var(--red) }
   .bead.blue{ border-color:var(--blue); color:var(--blue) }
   .bead.green{ border-color:var(--green); color:var(--green) }
+  .muted{color:#9aa3af}
 </style>
 </head>
 <body>
@@ -49,7 +50,7 @@
       </div>
       <div class="grow"></div>
       <div class="seg" style="font-weight:700;color:#cbd5e1">
-        已鎖定：高度規則「左≥右=紅」｜和局算高度｜斷列+1｜兩欄達標｜offset 起算
+        已鎖定：左≥右=紅｜offset 起算(2/3/4)｜兩欄達標｜和局算高度｜斷列+1
       </div>
     </div>
   </div>
@@ -63,6 +64,7 @@
   <div class="panel">
     <h3>大路（6×32）</h3>
     <div class="road"><div id="main" class="grid"></div></div>
+    <div id="heightsNote" class="muted" style="padding-top:6px"></div>
   </div>
   <div class="panel">
     <h3>大眼仔 / 小路 / 蟑螂（各 6×20）</h3>
@@ -75,56 +77,98 @@
 </div>
 
 <script>
-/* ============= 盤面尺寸 ============= */
+/* ===== 尺寸 ===== */
 const ROWS=6, BEAD_COLS=25, MAIN_COLS=32, DER_COLS=20;
 let hands=[];
 
-/* ============= 基礎 UI ============= */
+/* ===== UI 基礎 ===== */
 const setGrid=(el,cols)=>{ el.style.gridTemplateColumns=`repeat(${cols}, 28px)`; el.style.gridTemplateRows=`repeat(${ROWS}, 28px)`; };
 ['bead','main','big','small','roach'].forEach(id=>setGrid(document.getElementById(id), id==='bead'?BEAD_COLS:(id==='main'?MAIN_COLS:DER_COLS)));
-
 function add(x){ hands.push({res:x}); render(); }
 function undo(){ hands.pop(); render(); }
 function clearAll(){ if(confirm('清除?')){ hands=[]; render(); } }
 
-/* ============= 大路建表 + 欄位中繼 ============= */
-function buildMainGridWithMeta(list){
-  const grid=Array.from({length:ROWS},()=>Array(MAIN_COLS).fill(''));
-  const colMeta=[]; // 每欄：{bp:格數, ties:和數, blockedBreak:boolean}
-  let row=0,col=0; let last=null,lastPos=null;
-  const ensureCol=(c)=>{ if(!colMeta[c]) colMeta[c]={bp:0, ties:0, blockedBreak:false}; };
+/* ===== 工具：大路落子 ===== */
+function dropLikeBigRoad(grid, lastPos, lastColor, color){
+  // 傳回 {row,col,lastColor,lastPos,blockedBreak}
+  let blockedBreak=false;
+  if(lastColor===null){
+    grid[0][0]=color;
+    return {row:0,col:0,lastColor:color,lastPos:{row:0,col:0},blockedBreak:false};
+  }
+  if(color===lastColor){
+    // 優先往下；下不去則右移（並標記斷列）
+    if(lastPos.row+1<ROWS && !grid[lastPos.row+1][lastPos.col]){
+      const row=lastPos.row+1, col=lastPos.col;
+      grid[row][col]=color;
+      return {row,col,lastColor,color,lastPos:{row,col},blockedBreak:false};
+    }else{
+      let row=lastPos.row, col=lastPos.col+1;
+      while(col<MAIN_COLS && grid[row][col]) col++;
+      if(col<MAIN_COLS){ grid[row][col]=color; }
+      return {row,col,lastColor,color,lastPos:{row,col},blockedBreak:true};
+    }
+  }else{
+    // 換色：回頂右移
+    let row=0, col=lastPos.col+1;
+    while(col<MAIN_COLS && grid[row][col]) col++;
+    if(col<MAIN_COLS){ grid[row][col]=color; }
+    return {row,col,lastColor:color,lastPos:{row,col},blockedBreak:false};
+  }
+}
 
-  for(const r of list){
+/* ===== 逐手模擬：同時產生「大路 + 欄高 + 三路序列」 ===== */
+function simulateAll(seq){
+  const main = Array.from({length:ROWS},()=>Array(MAIN_COLS).fill(''));
+  const colMeta=[];  // 每欄：{bp, ties, blockedBreak}
+  const heights=()=>colMeta.map(m=>(m?.bp||0)+(m?.ties||0)+(m?.blockedBreak?1:0));
+
+  const bigSeq=[], smallSeq=[], roachSeq=[];
+  let lastColor=null, lastPos=null;
+  const ensure=(c)=>{ if(!colMeta[c]) colMeta[c]={bp:0, ties:0, blockedBreak:false}; };
+
+  for(const r of seq){
     if(r==='T'){
       if(lastPos){
-        grid[lastPos.row][lastPos.col]+='T';
-        ensureCol(lastPos.col); colMeta[lastPos.col].ties += 1;
+        main[lastPos.row][lastPos.col] += 'T';
+        ensure(lastPos.col); colMeta[lastPos.col].ties += 1;
       }
-      continue;
+      continue; // 和不開新格，但算高度
     }
-    if(!last){
-      ensureCol(col); grid[row][col]=r; last=r; lastPos={row,col};
-      colMeta[col].bp += 1; continue;
-    }
-    if(r===last){
-      if(lastPos.row+1<ROWS && !grid[lastPos.row+1][lastPos.col]){
-        row=lastPos.row+1; col=lastPos.col;
-        grid[row][col]=r; lastPos={row,col};
-        ensureCol(col); colMeta[col].bp += 1;
-      }else{
-        // 斷列：被擋右移，並把被擋的那欄標記 blockedBreak
-        ensureCol(lastPos.col); colMeta[lastPos.col].blockedBreak = true;
-        row=lastPos.row; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++;
-        if(col<MAIN_COLS){ ensureCol(col); grid[row][col]=r; lastPos={row,col}; colMeta[col].bp += 1; }
-      }
-    }else{
-      row=0; col=lastPos.col+1; while(col<MAIN_COLS && grid[row][col]) col++;
-      last=r;
-      if(col<MAIN_COLS){ ensureCol(col); grid[row][col]=r; lastPos={row,col}; colMeta[col].bp += 1; }
-    }
+
+    // 落大路一顆
+    const drop = dropLikeBigRoad(main, lastPos, lastColor, r);
+    const c = drop.col, row = drop.row;
+    ensure(c);
+    if(drop.blockedBreak) colMeta[lastPos.col].blockedBreak = true;
+    colMeta[c].bp += 1;
+    lastPos = {row, col:c};
+    lastColor = r;
+
+    // 取得目前欄高（含和、斷列）
+    const H = heights();
+
+    // 依當下這一顆，決定是否要出三路各一顆（最多三顆）
+    // 規則：offset 起算；兩欄達標；左≥右=紅
+    const tryEmit = (offset, collector) => {
+      const startRow = Math.max(1, offset-1);      // 1=第2行, 2=第3行, 3=第4行
+      if(row < startRow) return;                   // 未達起算行
+      const leftH = H[c-1] ?? 0;
+      const refH  = H[c-offset] ?? 0;
+      // 兩欄高度需 ≥ 當前行
+      if(leftH <= row-1 || refH <= row-1) return;
+      collector.push(leftH >= refH ? 'R' : 'B');
+    };
+
+    tryEmit(2, bigSeq);
+    tryEmit(3, smallSeq);
+    tryEmit(4, roachSeq);
   }
-  return {grid, colMeta};
+
+  return {main, colMeta, bigSeq, smallSeq, roachSeq};
 }
+
+/* ===== 盤面繪製 ===== */
 function paintMain(grid){
   const root=document.getElementById('main'); root.innerHTML='';
   for(let r=0;r<ROWS;r++) for(let c=0;c<MAIN_COLS;c++){
@@ -134,37 +178,9 @@ function paintMain(grid){
     root.appendChild(cell);
   }
 }
-
-/* ============= 欄高（實戰口味）：莊/閒 + 和 + 斷列補1 ============= */
-function getColumnHeights(meta){
-  return meta.map(m => (m?.bp||0) + (m?.ties||0) + (m?.blockedBreak ? 1 : 0));
-}
-
-/* ============= 產生紅/藍序列（連續、不中斷） ============= */
-function derivedSequenceContinuous(heights, offset){
-  // 規則鎖定：左≥右=紅；兩欄高度需達當前行；起算行=offset(2/3/4)
-  const rStart = Math.max(1, offset-1); // 1=第2行、2=第3行、3=第4行
-  const seq=[];
-  // 逐欄處理到最後一欄，確保「一直推進」
-  for(let c=1; c<heights.length; c++){
-    const curH = heights[c] || 0;
-    const leftH = heights[c-1] || 0;
-    const refH  = heights[c-offset] || 0;
-    // 從 rStart ~ curH-1 都判斷一次
-    for(let r=rStart; r<curH; r++){
-      // 兩欄高度達標才落子
-      if(leftH <= r-1 || refH <= r-1) continue;
-      const red = (leftH >= refH); // 左≥右=紅
-      seq.push(red ? 'R' : 'B');
-    }
-  }
-  return seq;
-}
-
-/* ============= 用大路規則把紅/藍排進 6×N 盤（會往下走） ============= */
 function layAsRoad(seq, colsCount){
   const grid=Array.from({length:ROWS},()=>Array(colsCount).fill(''));
-  let row=0, col=0; let last=null, lastPos=null;
+  let row=0, col=0, last=null, lastPos=null;
   for(const v of seq){
     if(!last){ grid[row][col]=v; last=v; lastPos={row,col}; continue; }
     if(v===last){
@@ -190,8 +206,6 @@ function paintDerivedGrid(id, grid, style){
     root.appendChild(cell);
   }
 }
-
-/* ============= 珠盤路 ============= */
 function paintBead(seq){
   const root=document.getElementById('bead'); root.innerHTML='';
   const grid=Array.from({length:ROWS},()=>Array(BEAD_COLS).fill(''));
@@ -210,24 +224,25 @@ function paintBead(seq){
   }
 }
 
-/* ============= 主渲染（一次做到位） ============= */
+/* ===== 主渲染 ===== */
 function render(){
-  const seq = hands.map(h=>h.res);
-  // 珠盤
+  const seq = hands.map(h=>h.res);  // B/P/T 序列
   paintBead(seq);
-  // 大路 + 欄高(含和/斷列)
-  const {grid:main, colMeta} = buildMainGridWithMeta(seq);
-  paintMain(main);
-  const heights = getColumnHeights(colMeta);
-  // 三路序列（連續推進）
-  const bigSeq   = derivedSequenceContinuous(heights,2);
-  const smallSeq = derivedSequenceContinuous(heights,3);
-  const roachSeq = derivedSequenceContinuous(heights,4);
-  // 三路落子（大路規則）
-  const bigGrid   = layAsRoad(bigSeq,   DER_COLS);
-  const smallGrid = layAsRoad(smallSeq, DER_COLS);
-  const roachGrid = layAsRoad(roachSeq, DER_COLS);
-  // 畫圖
+
+  // 逐手模擬：得到主路、欄高、以及三路的「連續序列」
+  const sim = simulateAll(seq);
+  paintMain(sim.main);
+
+  // 顯示欄高，方便你核對（含 和 + 斷列+1）
+  const heights = sim.colMeta.map(m => (m?.bp||0)+(m?.ties||0)+(m?.blockedBreak?1:0));
+  document.getElementById('heightsNote').innerText =
+    `欄高 = 莊/閒格數 + 和數 + 斷列補位(+1)；目前欄高：[ ${heights.join(', ')} ]`;
+
+  // 把三路序列用大路規則落盤（會往下走、滿了才右移）
+  const bigGrid   = layAsRoad(sim.bigSeq,   DER_COLS);
+  const smallGrid = layAsRoad(sim.smallSeq, DER_COLS);
+  const roachGrid = layAsRoad(sim.roachSeq, DER_COLS);
+
   paintDerivedGrid('big',   bigGrid,   'ring');
   paintDerivedGrid('small', smallGrid, 'tiny');
   paintDerivedGrid('roach', roachGrid, 'slash');

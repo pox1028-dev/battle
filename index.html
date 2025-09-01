@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Roadmap Pro｜實戰模式</title>
+<title>Roadmap Pro｜實戰模式（含戰術燈號）</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f172a">
 <style>
   :root{ --bg:#0f172a; --card:#0b1220; --muted:#94a3b8; --grid:#d1d5db; --grid-dark:#334155;
-         --red:#e11d48; --blue:#2563eb; --green:#10b981; --ink:#e5e7eb; }
+         --red:#e11d48; --blue:#2563eb; --green:#10b981; --ink:#e5e7eb; --yellow:#f59e0b; --gray:#6b7280; }
   *{box-sizing:border-box}
   body{margin:0; background:var(--bg); color:var(--ink); font-family:"Microsoft JhengHei",system-ui,-apple-system,Segoe UI,Roboto,Noto Sans TC,Arial}
   header{padding:12px 16px; background:linear-gradient(180deg,rgba(11,18,32,.95),rgba(11,18,32,.85)); border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:50}
@@ -57,6 +57,13 @@
   .bar .fill{height:100%; background:linear-gradient(90deg, rgba(225,29,72,.9), rgba(37,99,235,.9));}
   canvas{width:100%; height:130px; background:#0f172a; border:1px solid #243042; border-radius:10px}
   iframe{width:100%; height:320px; border:1px solid #243042; border-radius:12px; background:#0b1220}
+  /* lamps */
+  .lamps{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  .lamp{display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:#0f172a; border:1px solid #243042; font-size:12px}
+  .bulb{width:12px; height:12px; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,.25) inset}
+  .bulb.green{background:var(--green)}
+  .bulb.yellow{background:var(--yellow)}
+  .bulb.gray{background:var(--gray)}
 </style>
 </head>
 <body>
@@ -139,11 +146,15 @@
     </div>
 
     <div class="card" id="predictPanel">
-      <div style="display:flex; justify-content:space-between; align-items:center">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
         <div style="font-weight:700">下三路預測規律</div>
         <div style="font-size:12px; color:#94a3b8">紅=同形、藍=不同形</div>
       </div>
-      <div class="statRow" style="gap:12px; flex-wrap:wrap">
+      <div class="lamps">
+        <div class="lamp"><span class="bulb gray" id="lampB"></span><b>若下莊</b><span id="lampBText" style="color:#94a3b8"></span></div>
+        <div class="lamp"><span class="bulb gray" id="lampP"></span><b>若下閒</b><span id="lampPText" style="color:#94a3b8"></span></div>
+      </div>
+      <div class="statRow" style="gap:12px; flex-wrap:wrap; margin-top:6px">
         <div class="pill">若下一手 <b>莊</b> → 大眼仔：<span id="pb-big"></span>、小路：<span id="pb-small"></span>、蟑螂：<span id="pb-roach"></span></div>
         <div class="pill">若下一手 <b>閒</b> → 大眼仔：<span id="pp-big"></span>、小路：<span id="pp-small"></span>、蟑螂：<span id="pp-roach"></span></div>
       </div>
@@ -166,7 +177,7 @@
 <script>
   // ===== Sizes =====
   const ROWS=6, BEAD_COLS=25, MAIN_COLS=32, DER_COLS=20;
-  const LS_KEY="battle_mode_state_v1";
+  const LS_KEY="battle_mode_state_signal_v1";
   let hands=JSON.parse(localStorage.getItem(LS_KEY)||"[]"); // {res:'B|P|T', ts:number}
   let lastPos=null,lastColor=null;
   // grids
@@ -333,24 +344,19 @@
     const cvs=document.getElementById('trend'); const ctx=cvs.getContext('2d');
     const W=cvs.width=cvs.clientWidth, H=cvs.height=cvs.clientHeight;
     ctx.clearRect(0,0,W,H);
-    // compute cumulative B/P ratio over time ignoring T
     const pts=[]; let b=0,p=0;
     hands.forEach(h=>{ if(h.res==='B') b++; if(h.res==='P') p++; const n=b+p; if(n>0) pts.push({x:pts.length, y:b/n}); });
     if(pts.length<2){ ctx.fillStyle='#94a3b8'; ctx.fillText('等待更多資料以繪製走勢', 12, 18); return; }
     const maxX=pts.length-1; const pad=10;
-    // axis
     ctx.strokeStyle='#243042'; ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
-    // 50% line
     ctx.strokeStyle='rgba(148,163,184,.6)'; ctx.beginPath(); ctx.moveTo(pad, H/2); ctx.lineTo(W-pad, H/2); ctx.stroke();
-    // line
     ctx.beginPath(); pts.forEach((pt,i)=>{ const x=pad + (W-2*pad)*(pt.x/maxX); const y=H-pad - (H-2*pad)*(pt.y); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
     ctx.strokeStyle='rgba(225,29,72,.9)'; ctx.lineWidth=2; ctx.stroke();
   }
   function drawStreaks(){
-    // compute streaks for B and P
     let cur=null,len=0; const dist={B:{},P:{}};
     hands.forEach(h=>{
-      if(h.res==='T') return; // ignore ties for streaks
+      if(h.res==='T') return;
       if(h.res===cur){ len++; } else { if(cur && len>0){ dist[cur][len]=(dist[cur][len]||0)+1; } cur=h.res; len=1; }
     });
     if(cur && len>0){ dist[cur][len]=(dist[cur][len]||0)+1; }
@@ -367,19 +373,36 @@
       container.appendChild(row);
     });
   }
+
   function colorBadge(v){ return v==='R' ? '<span class="pill"><span class="dotR"></span>紅</span>' : v==='B' ? '<span class="pill"><span class="dotP"></span>藍</span>' : '<span class="pill" style="opacity:.6">—</span>'; }
+
   function updatePredictionPanel(){
     const tieMode=getTieMode(), cmp=getCompareMode();
     const trans = s => (tieMode==='break'? s.map(v=>v==='T'?'X':v): s);
     const build = seq => { const g=buildMainGrid(trans(seq)); const c=extractCols(g); return {big:buildDerived(c,2,cmp).at(-1)||'-', small:buildDerived(c,3,cmp).at(-1)||'-', roach:buildDerived(c,4,cmp).at(-1)||'-'}; };
     const nb=build(hands.map(h=>h.res).concat('B'));
     const np=build(hands.map(h=>h.res).concat('P'));
+    // badges
     document.getElementById('pb-big').innerHTML=colorBadge(nb.big);
     document.getElementById('pb-small').innerHTML=colorBadge(nb.small);
     document.getElementById('pb-roach').innerHTML=colorBadge(nb.roach);
     document.getElementById('pp-big').innerHTML=colorBadge(np.big);
     document.getElementById('pp-small').innerHTML=colorBadge(np.small);
     document.getElementById('pp-roach').innerHTML=colorBadge(np.roach);
+    // lamps
+    setLamp('lampB', 'lampBText', nb);
+    setLamp('lampP', 'lampPText', np);
+  }
+
+  function setLamp(bulbId, textId, pred){
+    const bulb=document.getElementById(bulbId);
+    const text=document.getElementById(textId);
+    const vals=[pred.big, pred.small, pred.roach];
+    if(vals.includes('-')){ bulb.className='bulb gray'; text.textContent=' 資料不足'; return; }
+    const allR = vals.every(v=>v==='R');
+    const allB = vals.every(v=>v==='B');
+    if(allR || allB){ bulb.className='bulb green'; text.textContent=' 一致（訊號強）'; }
+    else{ bulb.className='bulb yellow'; text.textContent=' 分歧（訊號弱）'; }
   }
 
   // ===== Calculator iframe & auto adopt =====
